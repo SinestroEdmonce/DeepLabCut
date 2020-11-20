@@ -35,6 +35,7 @@ from deeplabcut.utils import auxiliaryfunctions, auxfun_multianimal, visualizati
 from deeplabcut.utils.video_processor import (
     VideoProcessorCV as vp,
 )  # used to CreateVideo
+from deeplabcut.utils.auxfun_videos import VideoWriter
 
 
 def get_segment_indices(bodyparts2connect, all_bpts):
@@ -504,7 +505,7 @@ def create_labeled_video(
         skeleton_color,
         displaycropped,
         fastmode,
-        keypoints_only
+        keypoints_only,
     )
 
     with Pool(min(os.cpu_count(), len(Videos))) as pool:
@@ -535,7 +536,7 @@ def proc_video(
     displaycropped,
     fastmode,
     keypoints_only,
-    video
+    video,
 ):
     """Helper function for create_videos
 
@@ -608,7 +609,7 @@ def proc_video(
                     cfg["alphavalue"],
                     skeleton_color=skeleton_color,
                     color_by=color_by,
-                    colormap=cfg["colormap"]
+                    colormap=cfg["colormap"],
                 )
             elif not fastmode:
                 tmpfolder = os.path.join(str(videofolder), "temp-" + vname)
@@ -676,33 +677,33 @@ def proc_video(
 
 
 def create_video_with_keypoints_only(
-        df,
-        output_name,
-        ind_links=None,
-        pcutoff=0.6,
-        dotsize=8,
-        alpha=0.7,
-        background_color='k',
-        skeleton_color='navy',
-        color_by='bodypart',
-        colormap='viridis',
-        fps=25,
-        dpi=200,
-        codec='h264'
+    df,
+    output_name,
+    ind_links=None,
+    pcutoff=0.6,
+    dotsize=8,
+    alpha=0.7,
+    background_color="k",
+    skeleton_color="navy",
+    color_by="bodypart",
+    colormap="viridis",
+    fps=25,
+    dpi=200,
+    codec="h264",
 ):
     bodyparts = df.columns.get_level_values("bodyparts")[::3]
     bodypart_names = bodyparts.unique()
     n_bodyparts = len(bodypart_names)
-    nx = int(np.nanmax(df.xs('x', axis=1, level='coords')))
-    ny = int(np.nanmax(df.xs('y', axis=1, level='coords')))
+    nx = int(np.nanmax(df.xs("x", axis=1, level="coords")))
+    ny = int(np.nanmax(df.xs("y", axis=1, level="coords")))
 
     n_frames = df.shape[0]
     xyp = df.values.reshape((n_frames, -1, 3))
 
-    if color_by == 'bodypart':
+    if color_by == "bodypart":
         map_ = bodyparts.map(dict(zip(bodypart_names, range(n_bodyparts))))
         cmap = plt.get_cmap(colormap, n_bodyparts)
-    elif color_by == 'individual':
+    elif color_by == "individual":
         try:
             individuals = df.columns.get_level_values("individuals")[::3]
             individual_names = individuals.unique().to_list()
@@ -714,7 +715,7 @@ def create_video_with_keypoints_only(
                 "Coloring by individuals is only valid for multi-animal data"
             ) from e
     else:
-        raise ValueError(f'Invalid color_by={color_by}')
+        raise ValueError(f"Invalid color_by={color_by}")
 
     prev_backend = plt.get_backend()
     plt.switch_backend("agg")
@@ -731,9 +732,12 @@ def create_video_with_keypoints_only(
     ax.add_collection(coll)
     ax.set_xlim(0, nx)
     ax.set_ylim(0, ny)
-    ax.axis('off')
-    ax.add_patch(plt.Rectangle((0, 0), 1, 1, facecolor=background_color,
-                               transform=ax.transAxes, zorder=-1))
+    ax.axis("off")
+    ax.add_patch(
+        plt.Rectangle(
+            (0, 0), 1, 1, facecolor=background_color, transform=ax.transAxes, zorder=-1
+        )
+    )
     ax.invert_yaxis()
     plt.subplots_adjust(left=0, bottom=0, right=1, top=1, wspace=0, hspace=0)
 
@@ -855,18 +859,16 @@ def create_video_with_all_detections(
 
 
 def _create_video_from_tracks(video, tracks, destfolder, output_name, pcutoff, scale=1):
-    import cv2
     import subprocess
     from tqdm import tqdm
 
     if not os.path.isdir(destfolder):
         os.mkdir(destfolder)
 
-    cap = cv2.VideoCapture(video)
-    nframes = int(cap.get(7))
+    vid = VideoWriter(video)
+    nframes = len(vid)
     strwidth = int(np.ceil(np.log10(nframes)))  # width for strings
-    ny = int(cap.get(4))
-    nx = int(cap.get(3))
+    nx, ny = vid.dimensions
     # cropping!
     X2 = nx  # 1600
     X1 = 0
@@ -878,12 +880,11 @@ def _create_video_from_tracks(video, tracks, destfolder, output_name, pcutoff, s
     im = ax.imshow(np.zeros((ny, nx)))
     markers = sum([ax.plot([], [], ".", c=c) for c in cc], [])
     for index in tqdm(range(nframes)):
-        cap.set(1, index)
-        ret, frame = cap.read()
+        vid.set_to_frame(index)
         imname = "frame" + str(index).zfill(strwidth)
         image_output = os.path.join(destfolder, imname + ".png")
-        if ret and not os.path.isfile(image_output):
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        frame = vid.read_frame()
+        if frame is not None and not os.path.isfile(image_output):
             im.set_data(frame[:, X1:X2])
             for n, trackid in enumerate(trackids):
                 if imname in tracks[trackid]:
@@ -901,7 +902,7 @@ def _create_video_from_tracks(video, tracks, destfolder, output_name, pcutoff, s
         [
             "ffmpeg",
             "-framerate",
-            str(int(cap.get(5))),
+            str(vid.fps),
             "-i",
             f"frame%0{strwidth}d.png",
             "-r",

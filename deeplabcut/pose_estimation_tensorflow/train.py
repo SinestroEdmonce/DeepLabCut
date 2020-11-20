@@ -160,13 +160,14 @@ def train(
         cfg.dataset_type == "scalecrop"
         or cfg.dataset_type == "tensorpack"
         or cfg.dataset_type == "deterministic"
-    ):
+    ) and cfg["batch_size"] != 1:
         print(
-            "Switching batchsize to 1, as tensorpack/scalecrop/deterministic loaders do not support batches >1. Use imgaug/default loader."
+            "Switching batchsize to 1, as the tensorpack/ scalecrop/ deterministic loader does not support batches >1. Use imgaug/default loader for larger batch sizes."
         )
         cfg["batch_size"] = 1  # in case this was edited for analysis.-
 
     dataset = create_dataset(cfg)
+
     batch_spec = get_batch_spec(cfg)
     batch, enqueue_op, placeholders = setup_preloading(batch_spec)
 

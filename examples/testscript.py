@@ -147,14 +147,13 @@ try:  # you need ffmpeg command line interface
     newvideo = deeplabcut.ShortenVideo(
         video[0],
         start="00:00:00",
-        stop="00:00:00.4",
+        stop="00:00:01",
         outsuffix="short",
         outpath=os.path.join(cfg["project_path"], "videos"),
     )
-    vname = Path(newvideo).stem
-except:  # if ffmpeg is broken
-    vname = "brief"
-    newvideo = os.path.join(cfg["project_path"], "videos", vname + ".mp4")
+except:  # if ffmpeg is broken/missing
+    print("using alternative method")
+    newvideo = os.path.join(cfg["project_path"], "videos", videoname + "short.mp4")
     from moviepy.editor import VideoFileClip, VideoClip
 
     clip = VideoFileClip(video[0])
@@ -165,6 +164,8 @@ except:  # if ffmpeg is broken
 
     newclip = VideoClip(make_frame, duration=1)
     newclip.write_videofile(newvideo, fps=30)
+
+vname = Path(newvideo).stem
 
 deeplabcut.analyze_videos(
     path_config_file,
@@ -200,7 +201,7 @@ deeplabcut.extract_outlier_frames(
 deeplabcut.extract_outlier_frames(
     path_config_file,
     [newvideo],
-    outlieralgorithm="Fitting",
+    outlieralgorithm="fitting",
     automatic=True,
     destfolder=dfolder,
 )
@@ -269,15 +270,13 @@ try:  # you need ffmpeg command line interface
     newvideo2 = deeplabcut.ShortenVideo(
         video[0],
         start="00:00:00",
-        stop="00:00:00.4",
+        stop="00:00:01",
         outsuffix="short2",
         outpath=os.path.join(cfg["project_path"], "videos"),
     )
 
-    vname = Path(newvideo2).stem
 except:  # if ffmpeg is broken
-    vname = "brief"
-    newvideo2 = os.path.join(cfg["project_path"], "videos", vname + ".mp4")
+    newvideo2 = os.path.join(cfg["project_path"], "videos", videoname + "short2.mp4")
     from moviepy.editor import VideoFileClip, VideoClip
 
     clip = VideoFileClip(video[0])
@@ -289,6 +288,7 @@ except:  # if ffmpeg is broken
     newclip = VideoClip(make_frame, duration=1)
     newclip.write_videofile(newvideo2, fps=30)
 
+vname = Path(newvideo2).stem
 
 print("Inference with direct cropping")
 deeplabcut.analyze_videos(
@@ -313,6 +313,12 @@ deeplabcut.create_labeled_video(
     displaycropped=True,
     filtered=True,
 )
+
+print("Creating a Johansson video!")
+deeplabcut.create_labeled_video(
+    path_config_file, [newvideo], destfolder=dfolder, keypoints_only=True
+)
+
 deeplabcut.plot_trajectories(
     path_config_file, [newvideo2], destfolder=dfolder, filtered=True
 )

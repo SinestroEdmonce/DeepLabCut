@@ -218,7 +218,7 @@ class Refine_tracklets(wx.Panel):
         )
         window_length = self.filterlength_track.GetValue()
         if window_length % 2 != 1:
-            raise ValueError('Window length should be odd.')
+            raise ValueError("Window length should be odd.")
 
         deeplabcut.filterpredictions(
             self.config,
@@ -229,7 +229,7 @@ class Refine_tracklets(wx.Panel):
             filtertype=self.filter_track.GetValue(),
             track_method=tracker,
             windowlength=self.filterlength_track.GetValue(),
-            save_as_csv=False,
+            save_as_csv=True,
         )
 
     def export_data(self, event):

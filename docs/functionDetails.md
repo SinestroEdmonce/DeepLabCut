@@ -202,6 +202,14 @@ Note, we also highly recommend that you use more bodypoints that you might other
 <img src="https://images.squarespace-cdn.com/content/v1/57f6d51c9f74566f55ecf271/1588028248844-43RXXUNLE1VKJDKGGVFO/ke17ZwdGBToddI8pDm48kAxoZwLd0g_s-irkR9O2vUhZw-zPPgdn4jUwVcJE1ZvWQUxwkmyExglNqGp0IvTJZUJFbgE-7XRK3dMEBRBhUpxFjgZOWy5voI9x7QCcY8v6pdjAnJRY2VhSKj43SxhWXRPK8F08AQobuqKWFB6l9T0/labelingdemo.gif?format=750w" width="70%">
 </p>
 
+```
+HOT KEYS IN THE Labeling GUI (also see "help" in GUI)
+```
+Ctrl + C: Copy labels from previous frame.
+Keyboard arrows: advance frames
+delete key: delete label
+```
+
 ###  (E) Check Annotated Frames
 [DOCSTRING](https://github.com/AlexEMG/DeepLabCut/wiki/DOCSTRINGS#check_labels)
 
@@ -385,8 +393,10 @@ plotted as plus (‘+’), DeepLabCut’s predictions either as ‘.’ (for con
 The evaluation results for each shuffle of the training dataset are stored in a unique subdirectory in a newly created
 directory ‘evaluation-results’ in the project directory. The user can visually inspect if the distance between the labeled
 and the predicted body parts are acceptable. In the event of benchmarking with different shuffles of same training
-dataset, the user can provide multiple shuffle indices to evaluate the corresponding network. If the generalization is
-not sufficient, the user might want to:
+dataset, the user can provide multiple shuffle indices to evaluate the corresponding network.
+Note that with multi-animal projects additional distance statistics aggregated over animals or bodyparts are also stored
+in that directory. This aims at providing a finer quantitative evaluation of multi-animal prediction performance
+before animal tracking. If the generalization is not sufficient, the user might want to:
 
 • check if the labels were imported correctly; i.e., invisible points are not labeled and the points of interest are
 labeled accurately
@@ -543,7 +553,7 @@ Upon saving the refined tracks you get an `.h5` file (akin to what you might be 
 ```python
 deeplabcut.refine_tracklets(path_config_file, pickle_or_h5_file, videofile_path, min_swap_len=2, min_tracklet_len=2, trail_len=50)
 ```
-HOT KEYS IN THE GUI:
+HOT KEYS IN THE Tracklet GUI:
 ```
 Key D: activate "drag" so you can adjust bodyparts in that particular frame
 Key I: invert the position of a pair of bodyparts
@@ -653,6 +663,13 @@ Then pass ``draw_skeleton=True`` with the command:
 ```python
 deeplabcut.create_labeled_video(config_path,['fullpath/afolderofvideos'], videotype='.mp4', draw_skeleton = True)
 ```
+
+**NEW** as of 2.2b8: You can create a video with only the "dots" plotted, i.e., in the [style of Johansson](https://link.springer.com/article/10.1007/BF00309043), by passing `keypoints_only=True`:
+
+```python
+deeplabcut.create_labeled_video(config_path,['fullpath/afolderofvideos'], videotype='.mp4', keypoints_only=True)
+```
+
 **PRO TIP:** that the **best quality videos** are created when ``save_frames=True`` is passed. Therefore, when ``trailpoints`` and ``draw_skeleton`` are used, we **highly** recommend you also pass ``save_frames=True``!
 
  <p align="center">

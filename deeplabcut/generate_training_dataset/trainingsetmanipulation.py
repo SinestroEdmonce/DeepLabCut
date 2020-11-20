@@ -15,7 +15,6 @@ import shutil
 from functools import lru_cache
 from pathlib import Path
 
-import cv2
 import numpy as np
 import pandas as pd
 import yaml
@@ -28,6 +27,7 @@ from deeplabcut.utils import (
     auxfun_models,
     auxfun_multianimal,
 )
+from deeplabcut.utils.auxfun_videos import VideoReader
 
 
 def comparevideolistsanddatafolders(config):
@@ -116,11 +116,9 @@ def adddatasetstovideolistandviceversa(config):
                     break
             if found:
                 video_path = os.path.join(cfg["project_path"], "videos", file)
-                clip = cv2.VideoCapture(video_path)
-                width = int(clip.get(cv2.CAP_PROP_FRAME_WIDTH))
-                height = int(clip.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                clip = VideoReader(video_path)
                 videos.update(
-                    {video_path: {"crop": ", ".join(map(str, [0, width, 0, height]))}}
+                    {video_path: {"crop": ", ".join(map(str, clip.get_bbox()))}}
                 )
 
     auxiliaryfunctions.write_config(config, cfg)
@@ -310,7 +308,7 @@ def cropimagesandlabels(
             askuser = "y"
         if askuser == "y" or askuser == "yes" or askuser == "Y" or askuser == "Yes":
             new_vidname = vidname + "_cropped"
-            new_folder = folder.replace(vidname, new_vidname)
+            new_folder = os.path.join(project_path, "labeled-data", new_vidname)
             auxiliaryfunctions.attempttomakefolder(new_folder)
 
             AnnotationData = []
@@ -350,7 +348,7 @@ def cropimagesandlabels(
                     y1 = y0 + size[0]
                     x1 = x0 + size[1]
                     with np.errstate(invalid="ignore"):
-                        within = np.all((dd >= [x0, y0]) & (dd < [x1, y1]), axis=1,)
+                        within = np.all((dd >= [x0, y0]) & (dd < [x1, y1]), axis=1)
                     if cropdata:
                         dd[within] -= [x0, y0]
                         dd[~within] = np.nan
@@ -381,7 +379,7 @@ def cropimagesandlabels(
                 video_orig = sep.join((vidpath, vidname + videotype))
                 cfg["video_sets_original"][video_orig] = cfg["video_sets"][video_orig]
                 cfg["video_sets"].pop(video_orig)
-                cfg["video_sets"][video_orig.replace(vidname, new_vidname)] = {
+                cfg["video_sets"][sep.join((vidpath, new_vidname + videotype))] = {
                     "crop": ", ".join(map(str, [0, size[1], 0, size[0]]))
                 }
 
@@ -538,7 +536,7 @@ def MakeTrain_pose_yaml(
 ):
     docs = ParseYaml(defaultconfigfile)
     for key in items2drop.keys():
-        #print(key, "dropping?")
+        # print(key, "dropping?")
         if key in docs[0].keys():
             docs[0].pop(key)
 
@@ -1084,10 +1082,7 @@ def create_training_dataset(
                 if augmenter_type == "scalecrop":
                     # these values are dropped as scalecrop
                     # doesn't have rotation implemented
-                    items2drop = {
-                        "rotation": 0,
-                        "rotratio": 0.0,
-                    }
+                    items2drop = {"rotation": 0, "rotratio": 0.0}
 
                 trainingdata = MakeTrain_pose_yaml(
                     items2change, path_train_config, defaultconfigfile, items2drop

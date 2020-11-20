@@ -2,7 +2,6 @@ import pickle
 import re
 from threading import Event, Thread
 
-import cv2
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import matplotlib.transforms as mtransforms
@@ -15,6 +14,7 @@ from tqdm import trange
 from deeplabcut import generate_training_dataset
 from deeplabcut.post_processing import columnwise_spline_interp
 from deeplabcut.utils.auxiliaryfunctions import read_config, attempttomakefolder
+from deeplabcut.utils.auxfun_videos import VideoReader
 
 
 class BackgroundPlayer:
@@ -34,12 +34,12 @@ class BackgroundPlayer:
                 if len(self.speed) == 1:
                     i += 1
                 else:
-                    i += 2 * (len(self.speed)-1)
+                    i += 2 * (len(self.speed) - 1)
             elif "R" in self.speed:
                 if len(self.speed) == 1:
                     i -= 1
                 else:
-                    i -= 2 * (len(self.speed)-1)
+                    i -= 2 * (len(self.speed) - 1)
             if i > self.viz.manager.nframes:
                 i = 0
             elif i < 0:
@@ -217,12 +217,10 @@ class TrackletManager:
             tracklets_multi = np.full(
                 (self.nindividuals, self.nframes, len(bodyparts_multi) * 3),
                 np.nan,
-                np.float16
+                np.float16,
             )
             tracklets_single = np.full(
-                (self.nframes, len(bodyparts_single) * 3),
-                np.nan,
-                np.float16
+                (self.nframes, len(bodyparts_single) * 3), np.nan, np.float16
             )
             for _ in trange(len(tracklets_sorted)):
                 tracklet = tracklets_sorted.pop()
@@ -249,7 +247,8 @@ class TrackletManager:
                         for i in idx:
                             sl = slice(i * 3, i * 3 + 3)
                             tracklets_single[inds[rows[sl]], cols[sl]] = data_single[
-                                rows[sl], cols[sl]]
+                                rows[sl], cols[sl]
+                            ]
                 else:
                     is_free = np.isnan(tracklets_multi[:, inds])
                     data_multi = data[:, mask_multi]
@@ -264,7 +263,9 @@ class TrackletManager:
                             current_mask = mask[ind]
                             rows, cols = np.nonzero(current_mask)
                             if rows.size:
-                                tracklets_multi[ind, inds[rows], cols] = data_multi[current_mask]
+                                tracklets_multi[ind, inds[rows], cols] = data_multi[
+                                    current_mask
+                                ]
                                 is_free[ind, current_mask] = False
                                 has_data[current_mask] = False
                         if has_data.any():
@@ -289,7 +290,9 @@ class TrackletManager:
                             rows, cols = np.nonzero(has_data)
                             for i, j in zip(idx, better):
                                 sl = slice(j * 3, j * 3 + 3)
-                                tracklets_multi[i, inds[rows[sl]], cols[sl]] = remaining.flat[sl]
+                                tracklets_multi[
+                                    i, inds[rows[sl]], cols[sl]
+                                ] = remaining.flat[sl]
                     else:
                         rows, cols = np.nonzero(has_data)
                         n = np.argmin(overwrite_risk)
@@ -332,7 +335,7 @@ class TrackletManager:
             tracklets_raw = np.full(
                 (len(tracklets_sorted), self.nframes, len(bodyparts)),
                 np.nan,
-                np.float16
+                np.float16,
             )
             for n, tracklet in enumerate(tracklets_sorted[::-1]):
                 for frame, data in tracklet.items():
@@ -483,10 +486,8 @@ class TrackletVisualizer:
             manager.cfg["colormap"], len(set(manager.tracklet2id))
         )
         self.videoname = videoname
-        self.video = cv2.VideoCapture(videoname)
-        if not self.video.isOpened():
-            raise IOError("Video could not be opened.")
-        self.nframes = int(self.video.get(cv2.CAP_PROP_FRAME_COUNT))
+        self.video = VideoReader(videoname)
+        self.nframes = len(self.video)
         # Take into consideration imprecise OpenCV estimation of total number of frames
         if abs(self.nframes - manager.nframes) >= 0.05 * manager.nframes:
             print(
@@ -537,7 +538,7 @@ class TrackletVisualizer:
         self.colors = self.cmap(manager.tracklet2id)
         self.colors[:, -1] = self.alpha
 
-        img = self._read_frame()
+        img = self.video.read_frame()
         self.im = self.ax1.imshow(img)
         self.scat = self.ax1.scatter([], [], s=self.dotsize ** 2, picker=True)
         self.scat.set_offsets(manager.xy[:, 0])
@@ -624,12 +625,6 @@ class TrackletVisualizer:
 
     def show(self, fig=None):
         self._prepare_canvas(self.manager, fig)
-
-    def _read_frame(self):
-        frame = self.video.read()[1]
-        if frame is None:
-            return
-        return frame[:, :, ::-1]
 
     def fill_shaded_areas(self):
         self.clean_collections()
@@ -973,8 +968,8 @@ class TrackletVisualizer:
 
     def on_change(self, val):
         self.curr_frame = int(val)
-        self.video.set(cv2.CAP_PROP_POS_FRAMES, self.curr_frame)
-        img = self._read_frame()
+        self.video.set_to_frame(self.curr_frame)
+        img = self.video.read_frame()
         if img is not None:
             # Automatically disable the draggable points
             if self.draggable:
@@ -1008,13 +1003,14 @@ class TrackletVisualizer:
 
         # Save additional frames to the labeled-data directory
         strwidth = int(np.ceil(np.log10(self.nframes)))
-        vname = os.path.splitext(os.path.basename(self.videoname))[0]
         tmpfolder = os.path.join(
-            self.manager.cfg["project_path"], "labeled-data", vname
+            self.manager.cfg["project_path"], "labeled-data", self.video.name
         )
         if os.path.isdir(tmpfolder):
             print(
-                "Frames from video", vname, " already extracted (more will be added)!"
+                "Frames from video",
+                self.video.name,
+                " already extracted (more will be added)!",
             )
         else:
             attempttomakefolder(tmpfolder)
@@ -1025,8 +1021,8 @@ class TrackletVisualizer:
             )
             index.append(os.path.join(*imagename.rsplit(os.path.sep, 3)[-3:]))
             if not os.path.isfile(imagename):
-                self.video.set(cv2.CAP_PROP_POS_FRAMES, ind)
-                frame = self._read_frame()
+                self.video.set_to_frame(ind)
+                frame = self.video.read_frame()
                 if frame is None:
                     print("Frame could not be read. Skipping...")
                     continue
